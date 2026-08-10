@@ -1,6 +1,6 @@
 <template>
+  <OfflineBanner />
   <AppHeader />
-
   <main>
     <router-view />
   </main>
@@ -8,6 +8,7 @@
 
 <script setup>
 import AppHeader from './components/AppHeader.vue';
+import OfflineBanner from './components/OfflineBanner.vue';
 </script>
 
 <style scoped>
