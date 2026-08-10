@@ -27,7 +27,7 @@ export default defineConfig({
                 statuses: [0, 200], // 
               },
             },
-          }
+          },
 
           {
             urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
