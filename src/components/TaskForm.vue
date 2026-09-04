@@ -39,12 +39,48 @@
     Em notebook, abre o seletor de arquivos.
   </p>
 </div>
+<div class="location-section">
+  <button
+    type="button"
+    class="location-button"
+    :disabled="loadingLocation"
+    @click="handleGetLocation"
+  >
+    {{ loadingLocation ? 'Obtendo localização...' : '📍 Capturar localização' }}
+  </button>
+
+  <button
+    v-if="location"
+    type="button"
+    class="location-remove"
+    @click="clearLocation"
+  >
+    Remover localização
+  </button>
+
+  <p v-if="locationError" class="location-error">
+    {{ locationError }}
+  </p>
+
+  <div v-if="location" class="location-info">
+    <p>
+      <strong>Localização:</strong>
+      {{ location.label || 'Endereço não identificado' }}
+    </p>
+
+    <TaskLocationMap :location="location" />
+  </div>
+</div>
   </form>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
 import tasksApi from '../api/tasksApi.js'
+import { useGeolocation } from '../composables/useGeolocation.js'
+import geocodingApi from '../api/geocodingApi.js'
+import TaskLocationMap from './TaskLocationMap.vue'
+import { buildLocationPayload } from '../utils/location.js'
 
 const props = defineProps({
   editingTask: {
@@ -58,6 +94,17 @@ const newTask = ref('')
 const previewUrl = ref(null)
 const imgAttachmentKey = ref(null)
 const uploading = ref(false)
+
+const {
+  location,
+  loadingLocation,
+  locationError,
+  requestCurrentLocation,
+  setLocationFromTask,
+  clearLocation,
+  setLocationLabel,
+} = useGeolocation()
+
 const isMobileDevice = ref(
   !window.matchMedia('(pointer: fine)').matches,
 );
@@ -65,9 +112,17 @@ watch(
   () => props.editingTask,
   (task) => {
     newTask.value = task ? task.title : ''
+
     if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+
     previewUrl.value = null
     imgAttachmentKey.value = null
+
+    if (task) {
+      setLocationFromTask(task)
+    } else {
+      clearLocation()
+    }
   },
 )
 
@@ -88,14 +143,31 @@ async function handleImageChange(event) {
     uploading.value = false
   }
 }
+async function handleGetLocation() {
+  const captured = await requestCurrentLocation()
 
+  if (!captured) return
+
+  try {
+    const address = await geocodingApi.reverse(
+      captured.latitude,
+      captured.longitude,
+    )
+
+    setLocationLabel(address?.label)
+  } catch {
+    locationError.value =
+      'Localização obtida, mas não foi possível identificar a rua.'
+  }
+}
 function handleSubmit() {
   if (!newTask.value.trim()) return
 
   const payload = {
-    title: newTask.value.trim(),
-    imgAttachmentKey: imgAttachmentKey.value,
-  }
+  title: newTask.value.trim(),
+  imgAttachmentKey: imgAttachmentKey.value,
+  location: buildLocationPayload(location.value),
+}
 
   if (props.editingTask) {
     emit('update', props.editingTask.id, payload)
@@ -107,6 +179,7 @@ function handleSubmit() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = null
   imgAttachmentKey.value = null
+  clearLocation()
 }
 
 function handleCancel() {
@@ -114,6 +187,7 @@ function handleCancel() {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = null
   imgAttachmentKey.value = null
+  clearLocation()
   emit('cancel')
 }
 </script>
